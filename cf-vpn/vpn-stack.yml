@@ -46,7 +46,7 @@ Resources:
           export IPSEC_PSK="${IPSecSharedSecret}"
           export VPN_USER="${VPNUser}"
           export VPN_PASSWORD="${VPNPassword}"
-          curl -s https://raw.githubusercontent.com/AWSinAction/code2/master/chapter05/vpn-setup.sh | bash -ex
+          curl -s https://raw.githubusercontent.com/lindynetech/cf-stacks/master/cf-vpn/vpn-setup.sh | bash -ex
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
