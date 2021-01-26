@@ -17,4 +17,4 @@ aws cloudformation create-stack --stack-name cf-vpn \
 
 aws cloudformation wait stack-create-complete --stack-name cf-vpn
 
-aws cloudformation describe-stacks --stack-name vpn --query "Stacks[0].Outputs"
+aws cloudformation describe-stacks --stack-name cf-vpn --query "Stacks[0].Outputs"
