@@ -6,7 +6,7 @@ SharedSecret="$(openssl rand -base64 30)"
 Password="$(openssl rand -base64 30)"
 keypair=sysops-key
 
-CloudFormation create-stack --stack-name cf-vpn \
+aws cloudformation create-stack --stack-name cf-vpn \
 --template-body file://vpn-stack.yml \
 --parameters "ParameterKey=KeyName,ParameterValue=$keypair" \
 "ParameterKey=VPC,ParameterValue=$VpcId" \
@@ -15,6 +15,6 @@ CloudFormation create-stack --stack-name cf-vpn \
 "ParameterKey=VPNUser,ParameterValue=vpn" \
 "ParameterKey=VPNPassword,ParameterValue=$Password"
 
-CloudFormation wait stack-create-complete --stack-name cf-vpn
+aws cloudformation wait stack-create-complete --stack-name cf-vpn
 
-CloudFormation describe-stacks --stack-name vpn --query "Stacks[0].Outputs"
+aws cloudformation describe-stacks --stack-name vpn --query "Stacks[0].Outputs"
