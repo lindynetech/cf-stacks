@@ -10,7 +10,7 @@
     "Repo":{
       "Type":"String",
       "Description":"The name of the dromedary repository, not the URL",
-      "Default":"dromedary"
+      "Default":"iac-pipeline"
     },
     "GitHubToken":{
       "NoEcho":"true",
@@ -20,12 +20,13 @@
     "GitHubUser":{
       "Type":"String",
       "Description":"GitHub UserName. This username must have access to the GitHubToken.",
-      "Default":"stelligent"
+      "Default":"lindynetech"
     },
     "BaseTemplateURL":{
       "Type":"String",
       "Description":"S3 Base URL of all the CloudFormation templated used in Dromedary (without the file names)",
-      "Default":"https://s3.amazonaws.com/stelligent-public/cloudformation-templates/github/dromedary/"
+      "Default":"https://s3.amazonaws.com/lindyne-cf-templates/drome/"
+      
     },
     "VPCCFNTemplateFile":{
       "Type":"String",
