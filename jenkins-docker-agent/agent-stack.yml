@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Docker Cloud Jenkins agent  
+Parameters:
+  KeyName:
+    Description: SSH Key pair name
+    Type: String
+    Default: sysops-key
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: default
+ 
+Resources:
+  JenkinsAgentLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref AgentInstanceSg
+        ImageId: !Ref ImageId
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git wget -y
+          curl https://raw.githubusercontent.com/docker/docker-ce/master/components/cli/contrib/completion/bash/docker -o /etc/bash_completion.d/docker.sh
+          sed -i 's/OPTIONS="--default-ulimit nofile=1024:4096"/OPTIONS="--default-ulimit nofile=1024:4096 -H tcp:\/\/0.0.0.0:2375"/g' /etc/sysconfig/docker
+          systemctl daemon-reload
+          systemctl restart docker
+  
+  AgentInstanceSg:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Agent Instance SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 2375
+          ToPort: 2376
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+      VpcId: !Ref VpcId
+
+  AgentInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref JenkinsAgentLT
+        Version: "1"
+ 
+Outputs:
+  AgentInstanceIP:
+    Value: !GetAtt AgentInstance.PublicIp
+  AgentInstanceDNS:
+    Value: !GetAtt AgentInstance.PublicDnsName
