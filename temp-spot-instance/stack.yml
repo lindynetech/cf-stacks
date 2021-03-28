@@ -37,6 +37,7 @@ Resources:
         LaunchTemplateId: !Ref spotInstanceLT
         Version: "1"
   
+  # Add UserData with java-1.8.0-openjdk-headless or sudo amazon-linux-extras install java-openjdk11, git 
   spotInstanceLT:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -51,7 +52,11 @@ Resources:
           MarketType: spot
           SpotOptions: 
             MaxPrice: !Ref MaxPrice
-
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git wget -y
+          amazon-linux-extras install java-openjdk11
   spotInstanceSg:
     Type: AWS::EC2::SecurityGroup
     Properties:
