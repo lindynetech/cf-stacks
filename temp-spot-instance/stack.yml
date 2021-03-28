@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Temp Spot Instance
+Parameters:
+  KeyName:
+    Description: SSH Key pair name
+    Type: String
+    Default: sysops-key
+  InstanceType:
+    Description: Instance Type
+    Type: String
+    Default: c3.large
+    AllowedValues:
+      - t3.large
+      - c3.large
+      - m3.large
+      - r3.large
+  MaxPrice:
+    Description: Max Spot Instance Price
+    Type: String
+    Default: 0.03
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-100fe06d
+# Mappings:
+  
+# Conditions:
+  
+Resources:
+  spotEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref spotInstanceLT
+        Version: "1"
+  
+  spotInstanceLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub spotInstanceLT-${AWS::StackName}
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref spotInstanceSg
+        ImageId: !Ref ImageId
+        InstanceMarketOptions:        
+          MarketType: spot
+          SpotOptions: 
+            MaxPrice: !Ref MaxPrice
+
+  spotInstanceSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Spot Instance SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 2375
+          ToPort: 2376
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+      VpcId: !Ref VpcId
+
+Outputs:
+  spotEC2InstanceIP:
+    Value: !GetAtt spotEC2Instance.PublicIp
+  spotEC2InstanceDNS:
+    Value: !GetAtt spotEC2Instance.PublicDnsName
