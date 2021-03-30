@@ -1,0 +1,9 @@
+---
+# vars file for roles/kubeadm
+apt_repo: "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+apt_gpg_key: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+# Centos/RH
+yum_gpg_key: 
+  - https://packages.cloud.google.com/yum/doc/yum-key.gpg 
+  - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg

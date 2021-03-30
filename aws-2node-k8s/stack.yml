@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  2 Node K8s Setup on AWS, KubeAdm
+Parameters:
+  KeyName:
+    Description: SSH Key pair name
+    Type: String
+    Default: sysops-key
+  SpotInstanceType:
+    Description: Instance Type
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.large
+      - c3.large
+      - m3.large
+      - r3.large
+  MaxPrice:
+    Description: Max Spot Instance Price
+    Type: String
+    Default: 0.035
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-100fe06d
+
+Resources:
+  masterNode:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref masterNodeLT
+        Version: "1"
+      Tags:
+        - Key: role
+          Value: master    
+        - Key: inventory
+          Value: ansible
+  workerNode:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref workerNodeLT
+        Version: "1"
+      Tags:
+        - Key: role
+          Value: worker        
+        - Key: inventory
+          Value: ansible
+  masterNodeLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub masterNodeLT-${AWS::StackName}
+      LaunchTemplateData:
+        InstanceType: !Ref SpotInstanceType 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref masterNodeSg
+        ImageId: !Ref ImageId
+        InstanceMarketOptions:        
+          MarketType: spot
+          SpotOptions: 
+            MaxPrice: !Ref MaxPrice
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git -y    
+  workerNodeLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub workerNodeLT-${AWS::StackName}
+      LaunchTemplateData:
+        InstanceType: t2.micro 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref workerNodeSg
+        ImageId: !Ref ImageId
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git -y
+  masterNodeSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: node SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 8080
+          ToPort: 8080
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 6443
+          ToPort: 6443
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 2379
+          ToPort: 2380
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 10250
+          ToPort: 10252
+      VpcId: !Ref VpcId
+  workerNodeSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: node SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 10250
+          ToPort: 10250
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 30000
+          ToPort: 32767
+      VpcId: !Ref VpcId
+
+Outputs:
+  workerNodeIP:
+    Value: !GetAtt workerNode.PublicIp
+  masterNodeIP:
+    Value: !GetAtt masterNode.PublicIp

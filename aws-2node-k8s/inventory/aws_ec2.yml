@@ -1,0 +1,31 @@
+---
+plugin: aws_ec2
+boto_profile: default
+regions:
+  - us-east-1
+strict: False
+strict_permissions: False
+
+filters:
+  instance-state-name : running
+  tag:inventory: ansible
+
+hostnames:
+  - ip-address
+
+keyed_groups:
+# Add hosts to tag_Name_Value groups for each Name/Value tag pair, will create tag_role_worker and tag_role_master groups
+  # - prefix: tag
+  #   key: tags
+  - key: tags.role
+    separator: ''
+#  ansible-inventory --graph 
+#  @all:
+#   |--@aws_ec2:
+#   |  |--18.206.197.53
+#   |  |--3.233.242.12
+#   |--@master:
+#   |  |--3.233.242.12
+#   |--@ungrouped:
+#   |--@worker:
+#   |  |--18.206.197.53

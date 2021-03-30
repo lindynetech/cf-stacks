@@ -1,0 +1,6 @@
+---
+# Usage: $ ansible-galaxy install -r requirements.yml
+collections:
+# With just the collection name
+  - community.kubernetes
+  - amazon.aws

@@ -1,0 +1,50 @@
+---
+# Requires Collections: community.kubernetes and amazon.aws
+- name: Install kubeadm
+  hosts: all
+  become: true
+  gather_facts: true
+  tags:
+    - kubeadm
+
+  pre_tasks:
+    - name: Update apt cache
+      apt: update_cache=yes cache_valid_time=3600
+      when: ansible_os_family == 'Debian'
+
+  vars:
+    reconfigure_docker: true  # set systemd as cgroup drive https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+  roles:
+    - role: kubeadm
+    - role: docker_config
+
+# ================== Control Plane/Master Setup ==================
+
+- name: Setup control-node
+  hosts: master
+  gather_facts: true
+  tags:
+    - controlplane
+
+  roles:
+    - role: control-plane
+
+# ================== Join Workers ==================
+
+- name: Join workers
+  hosts: worker
+  become: true
+  gather_facts: true
+  tags:
+    - workers
+
+  tasks:
+    - name: Copy join command to workers
+      copy: 
+          src: /tmp/token
+          dest: /tmp/token
+
+    - name: Join the cluster
+      shell: sh /tmp/token
+      ignore_errors: true

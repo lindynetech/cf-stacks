@@ -1,0 +1,30 @@
+---
+- name: Add yum repo
+  yum_repository:
+    name: kubernetes
+    description: K8s repo
+    baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-$basearch
+    gpgcheck: true
+    repo_gpgcheck: true
+    gpgkey: "{{ yum_gpg_key }}"
+    enabled: true
+    exclude: "{{ package_list }}"
+
+- name: Set SELinux to permissive
+  selinux:
+    policy: targeted
+    state: permissive
+  when: ansible_selinux.status == 'enabled'
+
+- name: Install packages
+  yum:
+    name: "{{ package_list }}"
+    state: present
+    disable_excludes: kubernetes
+
+- name: Enable and start kubelet
+  service:
+    name: kubelet
+    state: started
+    enabled: true
+
