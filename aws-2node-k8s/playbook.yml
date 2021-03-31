@@ -42,9 +42,20 @@
   tasks:
     - name: Copy join command to workers
       copy: 
-          src: /tmp/token
+          src: /tmp/tokenc
           dest: /tmp/token
-
+    - name: Reset kubeadm
+      command: kubeadm reset -f
+    - name: Reset kubelet
+      service:
+        name: kubelet
+        state: stopped
+      ignore_errors: true
+    - name: Delete kubelet config
+      file:
+        path: /etc/kubernetes # redundant with kubeadm reset
+        state: absent
+      ignore_errors: true       
     - name: Join the cluster
       shell: sh /tmp/token
       ignore_errors: true

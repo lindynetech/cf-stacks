@@ -4,9 +4,17 @@
   become: true
   command: kubeadm reset -f
 
+- uri:
+    url: http://169.254.169.254/latest/meta-data/public-ipv4
+    return_content: true
+  register: public_ip
+
+- debug:
+    msg: "Public IP is {{public_ip.content }}"
+
 - name: kubeadm init
   become: true
-  command: kubeadm init --pod-network-cidr {{ pod_network_cidr}}  # --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+  command: kubeadm init --pod-network-cidr {{ pod_network_cidr}} --control-plane-endpoint {{ public_ip.content }}:6443 # --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
   register: output
 
 - name: Catch output for join command
@@ -30,12 +38,6 @@
 
 - name: Setup Calico network
   block:
-    # - name: Reset pod network tigera
-    #   command: kubectl delete -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
-    #   ignore_errors: true  
-    # - name: Reset pod network calico
-    #   command: kubectl delete -f /home/{{ ansible_user}}/calico.yml
-    #   ignore_errors: true 
     - name: Copy calico config 
       get_url:
         url: https://docs.projectcalico.org/manifests/custom-resources.yaml
