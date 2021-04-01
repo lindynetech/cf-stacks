@@ -4,8 +4,8 @@
     name: kubernetes
     description: K8s repo
     baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-$basearch
-    gpgcheck: true
-    repo_gpgcheck: true
+    gpgcheck: false
+    repo_gpgcheck: false
     gpgkey: "{{ yum_gpg_key }}"
     enabled: true
     exclude: "{{ package_list }}"

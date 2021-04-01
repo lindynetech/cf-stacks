@@ -42,7 +42,7 @@
   tasks:
     - name: Copy join command to workers
       copy: 
-          src: /tmp/tokenc
+          src: /tmp/token
           dest: /tmp/token
     - name: Reset kubeadm
       command: kubeadm reset -f
