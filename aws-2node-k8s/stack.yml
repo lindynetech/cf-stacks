@@ -66,7 +66,7 @@ Resources:
         UserData: !Base64 |
           #!/bin/bash
           yum update -y
-          yum install git -y    
+          yum install git bash-completion -y
   workerNodeLT:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -80,7 +80,7 @@ Resources:
         UserData: !Base64 |
           #!/bin/bash
           yum update -y
-          yum install git -y
+          yum install git bash-completion -y
   masterNodeSg:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -106,6 +106,14 @@ Resources:
           CidrIp: 0.0.0.0/0
           FromPort: 10250
           ToPort: 10252
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 5473
+          ToPort: 5473
+        - IpProtocol: udp
+          CidrIp: 0.0.0.0/0
+          FromPort: 4789
+          ToPort: 4789
       VpcId: !Ref VpcId
   workerNodeSg:
     Type: AWS::EC2::SecurityGroup
@@ -124,6 +132,14 @@ Resources:
           CidrIp: 0.0.0.0/0
           FromPort: 30000
           ToPort: 32767
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 5473
+          ToPort: 5473
+        - IpProtocol: udp
+          CidrIp: 0.0.0.0/0
+          FromPort: 4789
+          ToPort: 4789
       VpcId: !Ref VpcId
 
 Outputs:

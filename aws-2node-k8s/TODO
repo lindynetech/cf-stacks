@@ -1,0 +1,11 @@
+Open ports for Calico
+Too open, use SG as a Source
+
+- IpProtocol: tcp
+    CidrIp: 0.0.0.0/0
+    FromPort: 5473
+    ToPort: 5473
+- IpProtocol: udp
+    CidrIp: 0.0.0.0/0
+    FromPort: 4789
+    ToPort: 4789
