@@ -1,0 +1,79 @@
+---
+# tasks file for roles/control-plane
+- name: Reset kubeadm
+  become: true
+  command: kubeadm reset -f
+
+- uri:
+    url: http://169.254.169.254/latest/meta-data/public-ipv4
+    return_content: true
+  register: public_ip
+
+- debug:
+    msg: "Public IP is {{public_ip.content }}"
+
+- name: kubeadm init
+  become: true
+  command: "kubeadm init --pod-network-cidr {{ pod_network_cidr}} --control-plane-endpoint {{ public_ip.content }}:6443 --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+
+- name: Create .kube dir
+  file:
+    path: /home/{{ ansible_user}}/.kube
+    state: directory
+
+- name: Copy kube config
+  become: true
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/{{ ansible_user}}/.kube/config
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Setup Calico network
+  block:
+    - name: Copy calico config 
+      get_url:
+        url: https://docs.projectcalico.org/manifests/custom-resources.yaml
+        dest: /home/{{ ansible_user}}/calico.yml
+
+    - name: Copy calico tigera config 
+      get_url:
+        url: https://docs.projectcalico.org/manifests/tigera-operator.yaml
+        dest: /home/{{ ansible_user}}/tigera-operator.yaml
+    - name: Set custom network CIDR
+      replace:
+        path: /home/{{ ansible_user}}/calico.yml
+        regexp: '192.168.0.0/16'
+        replace: "{{ pod_network_cidr }}"
+
+    - name: Wait 1 min for cluster to come up
+      pause:
+        minutes: 1
+
+    - name: Setup calico tigera operator
+      command: "kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml"
+    - name: Setup calico pod network
+      command: "kubectl create -f /home/{{ ansible_user}}/calico.yml"
+
+  when: pod_network_provider == 'calico'
+
+- name: Setup Flannel pod network
+  command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+  ignore_errors: true
+  when: pod_network_provider == 'flannel'
+
+- name: Wait 1 min for network to setup
+  pause:
+    minutes: 1
+
+- name: Remove taint from control node
+  command: kubectl taint nodes --all node-role.kubernetes.io/master-
+
+- name: Generate Join command
+  command: "kubeadm token create --print-join-command"
+  register: join_command
+  ignore_errors: true
+
+- name: Store join command locally
+  local_action: copy content={{ join_command.stdout }} dest=/tmp/token

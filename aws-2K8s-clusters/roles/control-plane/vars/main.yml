@@ -1,0 +1,18 @@
+---
+# vars file for roles/control-plane
+apiserver_advertise_address: 172.31.73.168 # private NIC address, not used, kubeadm will pick up automatically
+pod_network_cidr: 172.81.0.0/16 # run with kubeadm init --pod-network-cidr {{ pod_network_cidr}}
+pod_network_provider: calico  # weave, flannel
+
+# Handled by CF stack
+# control_plane_tcp_ports:
+#   - 6443
+#   - 2379
+#   - 2380
+#   - 10250
+#   - 10251
+#   - 10252
+
+# worker_node_tcp_ports:
+#   - 10250
+#   - 30000-32767

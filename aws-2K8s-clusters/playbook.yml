@@ -1,0 +1,67 @@
+---
+# Requires Collections: community.kubernetes and amazon.aws
+- name: Install kubeadm
+  hosts: all
+  become: true
+  gather_facts: true
+  tags:
+    - kubeadm
+
+  vars:
+    reconfigure_docker: true  # set systemd as cgroup drive https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+  roles:
+    - role: kubeadm
+    - role: docker_config
+
+# ================== Control Plane/Master Setup ==================
+
+- name: Setup control-node
+  hosts: all
+  gather_facts: true
+  tags:
+    - controlplane
+
+  roles:
+    - role: control-plane
+
+# ================== Get .kube/config files ==================
+
+- name: Get .kube/config files
+  hosts: all 
+  gather_facts: true
+  tags:
+    - kubeconfig
+
+  tasks:
+    - name: Fetch .kube/config from each master
+      fetch: 
+        src: ~/.kube/config 
+        dest: config_{{inventory_hostname}}
+
+# ================== Prepare one node to act as Jenkins agent ==================
+- name: Prepare Jenkins Agent
+  hosts: master1Node
+  gather_facts: true
+  tags:
+    - agent
+
+  tasks:
+    - name: Install Java and JDK
+      yum:
+        name: 
+          - java-1.8.0-openjdk
+          - java-1.8.0-openjdk-devel
+        state: present
+      become: true
+    - name: Copy kubeconfig
+      copy: 
+        src: kube/config 
+        dest: ~/.kube/config
+    
+    - name: Test kubectl 
+      command: kubectl config get-contexts
+      register: get_ctx
+
+    - debug:
+        msg: "{{ get_ctx.stdout_lines }}"

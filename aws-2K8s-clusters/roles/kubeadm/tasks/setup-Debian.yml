@@ -1,0 +1,43 @@
+---
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+
+- name: Install deps
+  apt:
+    name:
+      - curl
+      - apt-transport-https
+      - ca-certificates
+      - gnupg2
+    state: present
+
+- name: Add Google apt key
+  apt_key:
+    url: "{{ apt_gpg_key }}"
+    # id: E8A032E094D8EB4EA189D270DA418C88A3219F7B
+    state: present
+  register: add_repository_key
+  ignore_errors: yes
+
+- name: Add apt key (alternative for older systems without SNI)
+  shell: >
+    set -o pipefail && \
+    curl -fsSL {{ apt_gpg_key }} | sudo apt-key add -
+  args:
+    warn: false
+  when: add_repository_key is failed
+
+- name: Add Google repository
+  apt_repository:
+    repo: "{{ apt_repo }}"
+    state: present
+    update_cache: true
+
+- name: Install packages
+  apt:
+    name: "{{ package_list }}"     
+    state: present
+
+- name: Mark hold
+  command: apt-mark hold {{ package_list | join(" ") }}
+  when: apt_mark_hold

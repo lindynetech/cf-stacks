@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  2 Node K8s Setup on AWS, KubeAdm
+Parameters:
+  KeyName:
+    Description: SSH Key pair name
+    Type: String
+    Default: sysops-key
+  SpotInstanceType:
+    Description: Instance Type
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.large
+      - c3.large
+      - m3.large
+      - r3.large
+  AZ:
+    Description: AZ, some AZs offer lower spot pricing
+    Type: String
+    Default: us-east-1a
+    AllowedValues:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1c
+      - us-east-1d
+      - us-east-1f
+  MaxPrice:
+    Description: Max Spot Instance Price
+    Type: String
+    Default: 0.03
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-100fe06d
+
+Resources:
+  master1Node:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref master1NodeLT
+        Version: "1"
+      AvailabilityZone: !Ref AZ
+      Tags:
+        - Key: role
+          Value: master1Node    
+        - Key: inventory
+          Value: ansible
+  master2Node:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref master2NodeLT
+        Version: "1"
+      AvailabilityZone: !Ref AZ
+      Tags:
+        - Key: role
+          Value: master2Node        
+        - Key: inventory
+          Value: ansible
+  master1NodeLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub master1NodeLT-${AWS::StackName}
+      LaunchTemplateData:
+        InstanceType: !Ref SpotInstanceType 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref masterSg
+        ImageId: !Ref ImageId
+        InstanceMarketOptions:        
+          MarketType: spot
+          SpotOptions: 
+            MaxPrice: !Ref MaxPrice
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git -y
+  master2NodeLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub master2NodeLT-${AWS::StackName}
+      LaunchTemplateData:
+        InstanceType: !Ref SpotInstanceType 
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref masterSg
+        ImageId: !Ref ImageId
+        InstanceMarketOptions:        
+          MarketType: spot
+          SpotOptions: 
+            MaxPrice: !Ref MaxPrice
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          yum install git -y
+  masterSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: node SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 8080
+          ToPort: 8080
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 6443
+          ToPort: 6443
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 443
+          ToPort: 443
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 2379
+          ToPort: 2380
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 10250
+          ToPort: 10252
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 30000
+          ToPort: 32767
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 5473
+          ToPort: 5473
+        - IpProtocol: udp
+          CidrIp: 0.0.0.0/0
+          FromPort: 4789
+          ToPort: 4789
+      VpcId: !Ref VpcId
+
+Outputs:
+  master1NodeIP:
+    Value: !GetAtt master1Node.PublicIp
+  master2NodeIP:
+    Value: !GetAtt master2Node.PublicIp
+

@@ -1,0 +1,15 @@
+---
+# tasks file for roles/docker_config
+# Configure the Docker daemon to use systemd for the management of the container’s cgroups
+
+- name:  Copy Docker systemd cgroupd driver config
+  copy:
+    src: daemon.json
+    dest: "/etc/docker/daemon.json"
+  notify: restart_docker
+  when: reconfigure_docker
+
+- name: Enable docker
+  service:
+    name: docker
+    enabled: true

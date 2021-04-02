@@ -1,0 +1,6 @@
+---
+# handlers file for roles/kubeadm
+- name: restart_kubelet
+  service:
+    name: kubelet
+    state: restarted

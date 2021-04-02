@@ -1,0 +1,8 @@
+---
+# handlers file for roles/docker_config
+- name: restart_docker
+  systemd:
+    name: docker
+    state: restarted
+    daemon_reload: yes
+    enabled: yes

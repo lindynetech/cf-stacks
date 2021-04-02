@@ -1,0 +1,42 @@
+---
+# tasks file for roles/kubeadm
+- name: Install kmod
+  apt: 
+    name: kmod
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: Check if br_netfilter is loaded
+  shell: lsmod | grep br_netfilter
+  register: br_netfilter_status
+  changed_when: false
+
+- name: Load br_netfilter
+  command: modprobe br_netfilter
+  when: br_netfilter_status.rc != 0
+
+- name: Add net.bridge.bridge-nf-call-ip6tables to sysctl.conf
+  sysctl:
+    name: net.bridge.bridge-nf-call-ip6tables
+    value: '1'
+    reload: yes
+    state: present
+
+- name: Add net.bridge.bridge-nf-call-iptables to sysctl.conf
+  sysctl:
+    name: net.bridge.bridge-nf-call-iptables
+    value: '1'
+    reload: yes
+    state: present
+
+- name: Install kubeadm, kubelet, kubectl
+  include_tasks: setup-Debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Install kubeadm, kubelet, kubectl
+  include_tasks: setup-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+
+- fail:
+    msg: Unsupported Platform, RedHat and Debian Only
+  when: ansible_os_family not in ['RedHat', 'Debian'] 
