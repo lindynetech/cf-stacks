@@ -1,0 +1,335 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Launches EC2 instance with Leantimne installed
+Parameters:
+  VpcID:
+      Description: Select default VPC ID
+      Type: "AWS::EC2::VPC::Id"
+  Subnet:
+    Description: "Just select one of the available subnets"
+    Type: "AWS::EC2::Subnet::Id"
+  AmiId:
+    Description: AMI for Host (default is Ubuntu 20.04)
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "Name of an existing SSH Keypair to access the instance"
+    Default: pavel-awsiq
+  DBName:
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+    Default: leantime
+    Description: Leantime DB name
+    MaxLength: '64'
+    MinLength: '1'
+    Type: String
+  DBPassword:
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+    Description: Leantime DB password
+    MaxLength: '41'
+    MinLength: '8'
+    NoEcho: 'true'
+    Type: String
+  DBRootPassword:
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+    Description: Leantime root DB password
+    MaxLength: '41'
+    MinLength: '8'
+    NoEcho: 'true'
+    Type: String
+  DBUser:
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+    Description: Leantime DB username
+    Default: admin
+    MaxLength: '16'
+    MinLength: '1'
+    NoEcho: 'true'
+    Type: String
+Resources:
+  EC2SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Default Group for Leantime"
+      VpcId: !Ref VpcID
+      SecurityGroupIngress:
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIp: "0.0.0.0/0"
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      Tags:
+        - Key: Name
+          Value: "Leantime SG"
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          leantime_install:
+            - install_cfn
+            - software_install
+            - configure_instance
+            - install_leantime
+            - configure_leantime
+        install_cfn:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack= ${AWS::StackId}
+                region=${AWS::Region}
+              group: root
+              mode: '000400'
+              owner: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2Instance --configsets leantime_install --region ${AWS::Region}
+              group: root
+              mode: '000400'
+              owner: root
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+        software_install:
+          packages:
+            yum:
+              wget: []
+              mariadb-server: []
+          commands:
+            0_extra_installs_php72_lampmariadb:
+              command: amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2 nginx1
+          files:
+            /etc/nginx/conf.d/default.conf:
+              content: !Sub |
+                server {
+
+                  listen 80;
+                  listen [::]:80;
+                  server_name domain.example.com;
+
+                  set $base /var/www/html;
+                  root $base/public;
+
+
+                  # logging
+                  access_log /var/log/nginx/leantime.access.log;
+                  error_log /var/log/nginx/leantime.error.log warn;
+
+
+                  # index.php
+                  index index.php;
+
+                  location ~.php$ {
+
+                    # 404
+                    try_files $fastcgi_script_name =404;
+
+                    # default fastcgi_params
+                    include fastcgi_params;
+
+                    # fastcgi settings
+                    fastcgi_pass unix:/var/run/php-fpm/www.sock;
+                    fastcgi_index index.php;
+                    fastcgi_buffers 8 16k;
+                    fastcgi_buffer_size 32k;
+
+                    # fastcgi params
+                    fastcgi_param DOCUMENT_ROOT $realpath_root;
+                    fastcgi_param SCRIPT_FILENAME       $realpath_root$fastcgi_script_name;
+                    fastcgi_param PHP_ADMIN_VALUE       "open_basedir=$base/:/usr/lib/php/:/tmp/";
+
+                  }
+
+                  location / {
+
+                    rewrite ^/?$ /index.php?act=dashboard.show;
+                    rewrite ^/([^/\.]+)/([^/\.]+)/?$ /index.php?act=$1.$2;
+                    rewrite ^/([^/\.]+)/([^/\.]+)/([^/\.]+)/?$ /index.php?act=$1.$2&id=$3;
+                  }
+
+                  location = /resetPassword {
+
+                    rewrite ^(.*)$ /index.php?resetPassword=true;
+                  }
+
+                  location /resetPassword {
+
+                    rewrite ^/resetPassword/([^/\.]+)/?$ /index.php?resetPassword=true&hash=$1;
+                  }
+                  location = /install {
+
+                    rewrite ^(.*)$ /index.php?install=true;
+                  }
+
+                  location /install {
+
+                    rewrite ^/install/([^/\.]+)/?$ /index.php?install=true;
+                  }
+
+                  location = /update {
+
+                      rewrite ^(.*)$ /index.php?update=true;
+                  }
+
+                  location /update {
+
+                    rewrite ^/update/([^/\.]+)/?$ /index.php?update=true;
+                  }
+
+                  # additional config
+                  # favicon.ico
+                  location = /favicon.ico {
+
+                    log_not_found off;
+                    access_log off;
+                  }
+
+                  # robots.txt
+                  location = /robots.txt {
+
+                    log_not_found off;
+                    access_log off;
+                  }
+
+                  # assets, media
+                  location ~* \.(?:css(\.map)?|js(\.map)?|jpe?g|png|gif|ico|cur|heic|webp|tiff?|mp3|m4a|aac|ogg|midi?|wav|mp4|mov|webm|mpe?g|avi|ogv|flv|wmv)$ {
+
+                    expires 7d;
+                    access_log off;
+                  }
+
+                  # svg, fonts
+                  location ~* \.(?:svgz?|ttf|ttc|otf|eot|woff2?)$ {
+
+                    add_header Access-Control-Allow-Origin "*";
+                    expires 7d;
+                    access_log off;
+                  }
+
+                  # gzip
+                  gzip on;
+                  gzip_vary on;
+                  gzip_proxied any;
+                  gzip_comp_level 6;
+                  gzip_types text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
+
+                }
+              group: root
+              mode: '000400'
+              owner: root
+          services:
+            sysvinit:
+              nginx:
+                enabled: true
+                ensureRunning: true
+              mariadb:
+                enabled: true
+                ensureRunning: true
+              php-fpm:
+                enabled: true
+                ensureRunning: true
+        configure_instance:
+          commands:
+            01_set_mysql_root_password:
+              command: !Sub |
+                mysqladmin -u root password '${DBRootPassword}'
+              test: !Sub |
+                $(mysql ${DBName} -u root --password='${DBRootPassword}' >/dev/null 2>&1 </dev/null); (( $? != 0 ))
+        install_leantime:
+          sources:
+            /var/www/html: https://github.com/Leantime/leantime/releases/download/v2.1.7/Leantime-v2.1.7.tar.gz
+          files:
+            /tmp/create-lt-config:
+              content: !Sub |
+                #!/bin/bash -xe
+                cp /var/www/html/config/configuration.sample.php /var/www/html/config/configuration.php
+                sed -i 's/$dbDatabase=""/$dbDatabase="'"${DBName}"'"/g' config/configuration.php
+                sed -i 's/$dbUser=""/$dbUser="'"${DBUser}"'"/g' config/configuration.php
+                sed -i 's/$dbPassword=""/$dbPassword="'"${DBPassword}"'"/g' config/configuration.php
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/db.setup:
+              content: !Sub |
+                CREATE DATABASE ${DBName};
+                CREATE USER '${DBUser}'@'localhost' IDENTIFIED BY '${DBPassword}';
+                GRANT ALL ON ${DBName}.* TO '${DBUser}'@'localhost';
+                FLUSH PRIVILEGES;
+              group: root
+              mode: '000400'
+              owner: root
+        configure_leantime:
+          files:
+            /tmp/permissionsfix:
+              content: !Sub |
+                #usermod -a -G apache ec2-user
+                #chown -R ec2-user:apache /var/www
+                chmod 2775 /var/www
+                find /var/www -type d -exec chmod 2775 {} \;
+                find /var/www -type f -exec chmod 0664 {} \;
+              group: root
+              mode: '000500'
+              owner: root
+          commands:
+            01_create_database:
+              command: !Sub |
+                mysql -u root --password='${DBRootPassword}' < /tmp/db.setup
+              test: !Sub |
+                $(mysql ${DBName} -u root --password='${DBRootPassword}' >/dev/null 2>&1 </dev/null); (( $? !=0))
+            02_move_leantime:
+              command: !Sub |
+                cp -rvf /var/www/html/Leantime-V2.1.7/* /var/www/html/
+            03_tidyup:
+              command: !Sub |
+                rm -R /var/www/html/Leantime-V2.1.7
+            04_configure_leantime:
+              command: /tmp/create-lt-config
+              cwd: /var/www/html
+            04_fix_permissions:
+              command: /tmp/permissionsfix
+    Properties:
+      KeyName: !Ref KeyName
+      InstanceType: "t2.micro"
+      ImageId: !Ref AmiId
+      SubnetId: !Ref Subnet
+      SecurityGroupIds:
+        - !Ref EC2SG
+      Tags:
+        - Key: Name
+          Value: Leantime EC2 Instance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          #yum -y update
+          yum update -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource EC2Instance --configsets leantime_install --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource EC2Instance --region ${AWS::Region}
+Outputs:
+  LeantimeInstallURL:
+    Description: Install URL
+    Value: !Join ["", ["http://", !GetAtt EC2Instance.PublicIp, "/install"]]
+  LeantimeURL:
+    Description: Access URL for Leatime
+    Value: !Join ["", ["http://", !GetAtt EC2Instance.PublicIp]]
